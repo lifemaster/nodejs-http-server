@@ -6,8 +6,15 @@ form.addEventListener('submit', e => {
   let formData = new FormData(form);
 
   sendData(formData)
-    .then(response => {
-      console.log(response);
+    .then(res => {
+      // const blob = new Blob([res.data], { type: res.contentType });
+      console.log('------------------------------------------------');
+      console.log(`Content-Type: ${res.contentType}`);
+      console.log(`Content-Length: ${res.contentLength} bytes`);
+
+      if (res.contentType.indexOf('application/json') != -1) {
+        console.log('Data: ', JSON.parse(res.data));
+      }
       form.reset();
     })
     .catch(err => console.log(err));
@@ -30,7 +37,11 @@ function sendData(formData) {
       if(xhr.status != 200) {
         reject(xhr.statusText);
       } else {
-        resolve(xhr.response);
+        resolve({
+          data: xhr.response,
+          contentType: xhr.getResponseHeader('Content-Type'),
+          contentLength: xhr.getResponseHeader('Content-Length')
+        });
       }
     }
   });
