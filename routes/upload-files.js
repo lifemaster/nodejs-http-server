@@ -24,7 +24,13 @@ const storage = multer.diskStorage({
   }
 });
 
-const upload = multer({ storage });
+const upload = multer({
+  storage,
+  limits: {
+    files: 10,
+    fileSize: 52428800 // 50 Mb
+  }
+});
 
 module.exports = function(app) {
   app.post('/api', upload.array('files'), (req, res, next) => {
@@ -38,11 +44,44 @@ module.exports = function(app) {
       const basename = path.basename(file);
       res.download(file, basename);
     } else {
-      // add files to archive and download it
-      res.json({
-        message: `Received files: ${req.files.length}`,
-        data: req.body
-      });
+      const files = req.files.map(file => file.path);
+      createArchive(files, 'archive')
+        .then(file => res.download(file, path.basename(file)))
+        .catch(err => { throw err });
     }
+  });
+}
+
+function createArchive(files, archiveFileName) {
+  return new Promise((resolve, reject) => {
+    const archive = archiver('zip');
+    const output = fs.createWriteStream(`./files/${archiveFileName}.zip`);
+
+    files.forEach(file => {
+      archive.append(fs.createReadStream(file), { name: path.basename(file) });
+    });
+
+    output.on('close', () => {
+      console.log(archive.pointer() + ' total bytes');
+      console.log('archiver has been finalized and the output file descriptor has closed.');
+      resolve('./files/archive.zip');
+    });
+
+    output.on('end', () => {
+      console.log('Data has been drained');
+    });
+
+    archive.on('waiting', err => {
+      if (err.code === 'ENOENT') {
+        console.log('On waiting ENOENT error: ', err);
+      } else {
+        reject(err);
+      }
+    });
+
+    archive.on('error', err => reject(err));
+
+    archive.pipe(output);
+    archive.finalize();
   });
 }
